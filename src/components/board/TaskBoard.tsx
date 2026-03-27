@@ -204,6 +204,12 @@ export default function TaskBoard() {
       )
       if (!projectName?.trim()) return
 
+      const startDateStr = window.prompt(
+        'Start date (YYYY-MM-DD):',
+        new Date().toISOString().slice(0, 10),
+      )
+      if (!startDateStr) return
+
       setSopDropdownOpen(false)
       setSopCreating(true)
 
@@ -217,7 +223,16 @@ export default function TaskBoard() {
           external_links: [],
         })
 
-        for (const step of template.tasks) {
+        // Calculate due dates by stacking duration hours (8h = 1 working day)
+        let cumulativeHours = 0
+        const sortedSteps = [...template.tasks].sort((a, b) => a.sequence - b.sequence)
+
+        for (const step of sortedSteps) {
+          cumulativeHours += step.duration_hours ?? 8
+          const daysOffset = Math.ceil(cumulativeHours / 8)
+          const dueDate = new Date(startDateStr)
+          dueDate.setDate(dueDate.getDate() + daysOffset)
+
           await createTask.mutateAsync({
             title: step.title,
             description: null,
@@ -227,7 +242,7 @@ export default function TaskBoard() {
             status: 'new' as TaskStatus,
             assignee_id: null,
             assigned_by: null,
-            due_date: null,
+            due_date: dueDate.toISOString().slice(0, 10),
             tags: [],
             file_links: [],
             sequence: step.sequence,
