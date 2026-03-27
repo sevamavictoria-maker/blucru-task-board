@@ -12,6 +12,7 @@ export function useSopTemplates() {
         .from('sop_templates')
         .select('*, tasks:sop_template_tasks(*)')
         .order('name')
+        .order('sequence', { referencedTable: 'sop_template_tasks', ascending: true })
 
       if (error) throw error
 
