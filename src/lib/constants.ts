@@ -1,9 +1,10 @@
 import type { TaskStatus, TaskUrgency } from '@/types/database'
 
 export const STATUS_COLUMNS: { value: TaskStatus; label: string; color: string; bg: string }[] = [
-  { value: 'inbox', label: 'Inbox', color: 'text-gray-600', bg: 'bg-gray-100' },
+  { value: 'new', label: 'New', color: 'text-gray-600', bg: 'bg-gray-100' },
   { value: 'assigned', label: 'Assigned', color: 'text-blue-600', bg: 'bg-blue-100' },
   { value: 'in_progress', label: 'In Progress', color: 'text-amber-600', bg: 'bg-amber-100' },
+  { value: 'dependency', label: 'Dependency', color: 'text-orange-600', bg: 'bg-orange-100' },
   { value: 'review', label: 'Review', color: 'text-purple-600', bg: 'bg-purple-100' },
   { value: 'done', label: 'Done', color: 'text-green-600', bg: 'bg-green-100' },
 ]

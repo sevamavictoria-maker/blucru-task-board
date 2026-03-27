@@ -5,28 +5,25 @@ import {
   Repeat,
   FileSpreadsheet,
   FileText,
-  ExternalLink,
   Globe,
 } from 'lucide-react'
 import type { Task, ExternalLink as ExternalLinkType } from '@/types/database'
+import { STATUS_COLUMNS } from '@/lib/constants'
+
+/* ── Props ──────────────────────────────────────────────────────────── */
 
 interface TaskCardProps {
   task: Task
   onClick: () => void
 }
 
-const urgencyConfig: Record<
-  string,
-  { dot: string; text: string; label: string }
-> = {
+/* ── Config ─────────────────────────────────────────────────────────── */
+
+const urgencyConfig: Record<string, { dot: string; text: string; label: string }> = {
   high: { dot: 'bg-red-500', text: 'text-red-700', label: 'High' },
   medium: { dot: 'bg-amber-500', text: 'text-amber-700', label: 'Medium' },
   low: { dot: 'bg-green-500', text: 'text-green-700', label: 'Low' },
-  scheduled: {
-    dot: 'bg-indigo-500',
-    text: 'text-indigo-700',
-    label: 'Scheduled',
-  },
+  scheduled: { dot: 'bg-indigo-500', text: 'text-indigo-700', label: 'Scheduled' },
 }
 
 const frequencyAbbrev: Record<string, string> = {
@@ -48,8 +45,11 @@ function linkIcon(type: ExternalLinkType['type']) {
   }
 }
 
+/* ── Component ──────────────────────────────────────────────────────── */
+
 export default function TaskCard({ task, onClick }: TaskCardProps) {
   const urgency = urgencyConfig[task.urgency] ?? urgencyConfig.low
+  const statusCol = STATUS_COLUMNS.find((c) => c.value === task.status)
   const overdue =
     task.due_date && isPast(new Date(task.due_date)) && !isToday(new Date(task.due_date))
 
@@ -58,24 +58,37 @@ export default function TaskCard({ task, onClick }: TaskCardProps) {
       onClick={onClick}
       className="cursor-pointer rounded-xl border border-gray-200 bg-white p-3 shadow-sm transition-shadow hover:shadow-md"
     >
-      {/* Urgency badge */}
+      {/* Top row: status pill + urgency dot + sequence badge */}
       <div className="mb-1.5 flex items-center gap-1.5">
+        {/* Status pill */}
+        {statusCol && (
+          <span
+            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusCol.bg} ${statusCol.color}`}
+          >
+            {statusCol.label}
+          </span>
+        )}
+
+        {/* Urgency dot */}
         <span className={`inline-block h-2 w-2 rounded-full ${urgency.dot}`} />
-        <span className={`text-xs font-medium ${urgency.text}`}>
-          {urgency.label}
-        </span>
+        <span className={`text-xs font-medium ${urgency.text}`}>{urgency.label}</span>
+
+        {/* Sequence badge */}
+        {task.sequence != null && (
+          <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-brand-100 text-[10px] font-bold text-brand-700">
+            {task.sequence}
+          </span>
+        )}
       </div>
 
       {/* Title */}
-      <h4 className="mb-1 text-sm font-medium text-gray-900 leading-snug">
+      <h4 className="mb-1 text-sm font-medium leading-snug text-gray-900">
         {task.title}
       </h4>
 
       {/* Description */}
       {task.description && (
-        <p className="mb-2 line-clamp-2 text-xs text-gray-500">
-          {task.description}
-        </p>
+        <p className="mb-2 line-clamp-2 text-xs text-gray-500">{task.description}</p>
       )}
 
       {/* Badges row */}
@@ -115,8 +128,8 @@ export default function TaskCard({ task, onClick }: TaskCardProps) {
         </div>
       )}
 
-      {/* Bottom row: assignee, due date, links */}
-      <div className="flex items-center justify-between gap-2 pt-1 border-t border-gray-100">
+      {/* Bottom row: assignee, file links, due date */}
+      <div className="flex items-center justify-between gap-2 border-t border-gray-100 pt-1">
         {/* Assignee */}
         <div className="flex items-center gap-1.5 text-xs text-gray-500">
           {task.assignee ? (
@@ -147,15 +160,15 @@ export default function TaskCard({ task, onClick }: TaskCardProps) {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* External links from project */}
-          {task.project?.external_links?.map((link, i) => (
+          {/* File links on the task */}
+          {task.file_links?.map((link, i) => (
             <a
               key={i}
               href={link.url}
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
-              title={link.label}
+              title={link.label || link.url}
               className="text-gray-400 transition-colors hover:text-brand-600"
             >
               {linkIcon(link.type)}
@@ -173,9 +186,7 @@ export default function TaskCard({ task, onClick }: TaskCardProps) {
               {isToday(new Date(task.due_date))
                 ? 'Today'
                 : isPast(new Date(task.due_date))
-                  ? formatDistanceToNow(new Date(task.due_date), {
-                      addSuffix: true,
-                    })
+                  ? formatDistanceToNow(new Date(task.due_date), { addSuffix: true })
                   : format(new Date(task.due_date), 'MMM d')}
             </span>
           )}

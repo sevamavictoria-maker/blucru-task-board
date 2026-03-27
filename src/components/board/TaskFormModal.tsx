@@ -1,15 +1,21 @@
 import { useState } from 'react'
-import { X } from 'lucide-react'
+import { X, Plus, Trash2, Loader2 } from 'lucide-react'
 import type {
   Task,
   TaskStatus,
   TaskUrgency,
   RecurringFrequency,
+  ExternalLink,
 } from '@/types/database'
 import { useCreateTask, useUpdateTask } from '@/hooks/useTasks'
 import { useProjects } from '@/hooks/useProjects'
 import { useUsers } from '@/hooks/useUsers'
-import { DEPARTMENTS } from '@/lib/constants'
+import { useCreateNotification } from '@/hooks/useNotifications'
+import { useAddActivity } from '@/hooks/useTaskActivity'
+import { useAuth } from '@/hooks/useAuth'
+import { STATUS_COLUMNS, URGENCY_OPTIONS, DEPARTMENTS } from '@/lib/constants'
+
+/* ── Props ──────────────────────────────────────────────────────────── */
 
 interface TaskFormModalProps {
   task: Task | null
@@ -17,20 +23,7 @@ interface TaskFormModalProps {
   onSave: () => void
 }
 
-const statusOptions: { value: TaskStatus; label: string }[] = [
-  { value: 'inbox', label: 'Inbox' },
-  { value: 'assigned', label: 'Assigned' },
-  { value: 'in_progress', label: 'In Progress' },
-  { value: 'review', label: 'Review' },
-  { value: 'done', label: 'Done' },
-]
-
-const urgencyOptions: { value: TaskUrgency; label: string }[] = [
-  { value: 'high', label: 'High' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'low', label: 'Low' },
-  { value: 'scheduled', label: 'Scheduled' },
-]
+/* ── Options ────────────────────────────────────────────────────────── */
 
 const frequencyOptions: { value: RecurringFrequency; label: string }[] = [
   { value: 'daily', label: 'Daily' },
@@ -39,36 +32,66 @@ const frequencyOptions: { value: RecurringFrequency; label: string }[] = [
   { value: 'bi-monthly', label: 'Bi-monthly' },
 ]
 
-const inputClass =
-  'w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 outline-none transition-colors focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20'
+const linkTypeOptions: { value: ExternalLink['type']; label: string }[] = [
+  { value: 'sharepoint', label: 'SharePoint' },
+  { value: 'excel', label: 'Excel' },
+  { value: 'word', label: 'Word' },
+  { value: 'url', label: 'URL' },
+]
 
-export default function TaskFormModal({
-  task,
-  onClose,
-  onSave,
-}: TaskFormModalProps) {
+const emptyLink: ExternalLink = { type: 'url', url: '', label: '' }
+
+/* ── Component ──────────────────────────────────────────────────────── */
+
+export default function TaskFormModal({ task, onClose, onSave }: TaskFormModalProps) {
   const isEdit = !!task
   const { data: projects = [] } = useProjects()
   const { data: users = [] } = useUsers()
+  const { session, profile } = useAuth()
   const createTask = useCreateTask()
   const updateTask = useUpdateTask()
+  const createNotification = useCreateNotification()
+  const addActivity = useAddActivity()
 
-  /* Form state */
+  const userId = session?.user?.id
+  const currentUserName = profile?.full_name ?? session?.user?.email ?? 'Someone'
+
+  /* ── Form state ───────────────────────────────────────────────────── */
+
   const [title, setTitle] = useState(task?.title ?? '')
   const [description, setDescription] = useState(task?.description ?? '')
   const [department, setDepartment] = useState(task?.department ?? (DEPARTMENTS[0] ?? ''))
   const [projectId, setProjectId] = useState(task?.project_id ?? '')
   const [urgency, setUrgency] = useState<TaskUrgency>(task?.urgency ?? 'medium')
-  const [status, setStatus] = useState<TaskStatus>(task?.status ?? 'inbox')
+  const [status, setStatus] = useState<TaskStatus>(task?.status ?? 'new')
   const [assigneeId, setAssigneeId] = useState(task?.assignee_id ?? '')
   const [dueDate, setDueDate] = useState(task?.due_date ?? '')
   const [tagsText, setTagsText] = useState(task?.tags?.join(', ') ?? '')
+  const [fileLinks, setFileLinks] = useState<ExternalLink[]>(task?.file_links ?? [])
   const [recurring, setRecurring] = useState(!!task?.recurring_frequency)
   const [frequency, setFrequency] = useState<RecurringFrequency>(
     task?.recurring_frequency ?? 'weekly',
   )
   const [autoCreate, setAutoCreate] = useState(task?.recurring_auto_create ?? false)
   const [saving, setSaving] = useState(false)
+
+  /* ── File links helpers ───────────────────────────────────────────── */
+
+  function addLink() {
+    setFileLinks((prev) => [...prev, { ...emptyLink }])
+  }
+
+  function removeLink(index: number) {
+    setFileLinks((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  function updateLink(index: number, field: keyof ExternalLink, value: string) {
+    setFileLinks((prev) =>
+      prev.map((link, i) => (i === index ? { ...link, [field]: value } : link)),
+    )
+  }
+
+  /* ── Submit ───────────────────────────────────────────────────────── */
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -79,6 +102,9 @@ export default function TaskFormModal({
       .map((t) => t.trim())
       .filter(Boolean)
 
+    // Filter out empty file links
+    const validLinks = fileLinks.filter((l) => l.url.trim())
+
     const payload = {
       title: title.trim(),
       description: description.trim() || null,
@@ -87,9 +113,11 @@ export default function TaskFormModal({
       urgency,
       status,
       assignee_id: assigneeId || null,
-      assigned_by: null as string | null,
+      assigned_by: assigneeId ? (userId ?? null) : null,
       due_date: dueDate || null,
       tags,
+      file_links: validLinks,
+      sequence: task?.sequence ?? null,
       recurring_frequency: recurring ? frequency : null,
       recurring_auto_create: recurring ? autoCreate : false,
       recurring_parent_id: task?.recurring_parent_id ?? null,
@@ -98,10 +126,67 @@ export default function TaskFormModal({
     setSaving(true)
     try {
       if (isEdit && task) {
+        const oldStatus = task.status
+        const oldAssigneeId = task.assignee_id
+
         await updateTask.mutateAsync({ id: task.id, ...payload })
+
+        // Activity for status change
+        if (status !== oldStatus && userId) {
+          addActivity.mutate({
+            task_id: task.id,
+            type: 'status_change',
+            user_id: userId,
+            data: { from: oldStatus, to: status },
+          })
+        }
+
+        // Notification for assignee change
+        if (assigneeId && assigneeId !== oldAssigneeId) {
+          createNotification.mutate({
+            user_id: assigneeId,
+            task_id: task.id,
+            type: 'assigned',
+            message: `${currentUserName} assigned you to: ${title.trim()}`,
+          })
+
+          if (userId) {
+            addActivity.mutate({
+              task_id: task.id,
+              type: 'assigned',
+              user_id: userId,
+              data: {
+                assignee_id: assigneeId,
+                assignee_name:
+                  users.find((u) => u.id === assigneeId)?.full_name ?? 'someone',
+              },
+            })
+          }
+        }
       } else {
-        await createTask.mutateAsync(payload)
+        const newTask = await createTask.mutateAsync(payload)
+
+        // Activity for creation
+        if (userId) {
+          addActivity.mutate({
+            task_id: newTask.id,
+            type: 'created',
+            user_id: userId,
+            data: null,
+          })
+        }
+
+        // Notification for initial assignee
+        if (assigneeId && assigneeId !== userId) {
+          createNotification.mutate({
+            user_id: assigneeId,
+            task_id: newTask.id,
+            type: 'assigned',
+            message: `${currentUserName} assigned you to: ${title.trim()}`,
+          })
+        }
       }
+
       onSave()
     } catch {
       // errors handled by react-query
@@ -109,6 +194,8 @@ export default function TaskFormModal({
       setSaving(false)
     }
   }
+
+  /* ── Render ───────────────────────────────────────────────────────── */
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 pt-[8vh]">
@@ -139,7 +226,7 @@ export default function TaskFormModal({
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Task title"
               required
-              className={inputClass}
+              className="input"
             />
           </div>
 
@@ -153,7 +240,7 @@ export default function TaskFormModal({
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Add a description..."
               rows={3}
-              className={`${inputClass} resize-none`}
+              className="input resize-none"
             />
           </div>
 
@@ -166,7 +253,7 @@ export default function TaskFormModal({
               <select
                 value={department}
                 onChange={(e) => setDepartment(e.target.value)}
-                className={inputClass}
+                className="input"
               >
                 {DEPARTMENTS.map((d) => (
                   <option key={d} value={d}>
@@ -182,7 +269,7 @@ export default function TaskFormModal({
               <select
                 value={projectId}
                 onChange={(e) => setProjectId(e.target.value)}
-                className={inputClass}
+                className="input"
               >
                 <option value="">None</option>
                 {projects.map((p) => (
@@ -203,9 +290,9 @@ export default function TaskFormModal({
               <select
                 value={urgency}
                 onChange={(e) => setUrgency(e.target.value as TaskUrgency)}
-                className={inputClass}
+                className="input"
               >
-                {urgencyOptions.map((o) => (
+                {URGENCY_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
                   </option>
@@ -219,9 +306,9 @@ export default function TaskFormModal({
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value as TaskStatus)}
-                className={inputClass}
+                className="input"
               >
-                {statusOptions.map((o) => (
+                {STATUS_COLUMNS.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
                   </option>
@@ -239,7 +326,7 @@ export default function TaskFormModal({
               <select
                 value={assigneeId}
                 onChange={(e) => setAssigneeId(e.target.value)}
-                className={inputClass}
+                className="input"
               >
                 <option value="">Unassigned</option>
                 {users.map((u) => (
@@ -257,7 +344,7 @@ export default function TaskFormModal({
                 type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                className={inputClass}
+                className="input"
               />
             </div>
           </div>
@@ -272,11 +359,67 @@ export default function TaskFormModal({
               value={tagsText}
               onChange={(e) => setTagsText(e.target.value)}
               placeholder="Comma-separated tags"
-              className={inputClass}
+              className="input"
             />
-            <p className="mt-1 text-[10px] text-gray-400">
-              Separate tags with commas
-            </p>
+            <p className="mt-1 text-[10px] text-gray-400">Separate tags with commas</p>
+          </div>
+
+          {/* File Links */}
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <label className="text-xs font-medium text-gray-700">File Links</label>
+              <button
+                type="button"
+                onClick={addLink}
+                className="flex items-center gap-1 text-xs font-medium text-brand-600 transition-colors hover:text-brand-700"
+              >
+                <Plus size={14} />
+                Add Link
+              </button>
+            </div>
+            {fileLinks.length === 0 && (
+              <p className="text-xs text-gray-400">No file links added</p>
+            )}
+            <div className="space-y-2">
+              {fileLinks.map((link, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <select
+                    value={link.type}
+                    onChange={(e) =>
+                      updateLink(i, 'type', e.target.value)
+                    }
+                    className="input w-28 shrink-0"
+                  >
+                    {linkTypeOptions.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="url"
+                    value={link.url}
+                    onChange={(e) => updateLink(i, 'url', e.target.value)}
+                    placeholder="https://..."
+                    className="input flex-1"
+                  />
+                  <input
+                    type="text"
+                    value={link.label}
+                    onChange={(e) => updateLink(i, 'label', e.target.value)}
+                    placeholder="Label"
+                    className="input w-24 shrink-0"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeLink(i)}
+                    className="mt-1.5 rounded p-1 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Recurring */}
@@ -295,10 +438,8 @@ export default function TaskFormModal({
               <div className="mt-3 flex flex-wrap items-center gap-3 pl-6">
                 <select
                   value={frequency}
-                  onChange={(e) =>
-                    setFrequency(e.target.value as RecurringFrequency)
-                  }
-                  className={`${inputClass} w-auto`}
+                  onChange={(e) => setFrequency(e.target.value as RecurringFrequency)}
+                  className="input w-auto"
                 >
                   {frequencyOptions.map((o) => (
                     <option key={o.value} value={o.value}>
@@ -332,8 +473,9 @@ export default function TaskFormModal({
             <button
               type="submit"
               disabled={saving || !title.trim()}
-              className="rounded-lg bg-brand-600 px-5 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-brand-700 disabled:opacity-50"
+              className="flex items-center gap-2 rounded-lg bg-brand-600 px-5 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-brand-700 disabled:opacity-50"
             >
+              {saving && <Loader2 size={14} className="animate-spin" />}
               {saving ? 'Saving...' : isEdit ? 'Update Task' : 'Create Task'}
             </button>
           </div>
