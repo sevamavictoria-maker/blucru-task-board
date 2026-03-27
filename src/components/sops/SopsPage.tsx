@@ -295,7 +295,7 @@ export default function SopsPage() {
                       </p>
                     ) : (
                       <ol className="space-y-2">
-                        {tpl.tasks!.map((step) => (
+                        {[...tpl.tasks!].sort((a, b) => a.sequence - b.sequence).map((step) => (
                           <li
                             key={step.id}
                             className="flex items-center gap-3 rounded-lg bg-gray-50 px-3 py-2"
