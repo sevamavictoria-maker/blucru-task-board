@@ -469,28 +469,82 @@ export default function TaskBoard() {
         </div>
       )}
 
-      {/* ── Grouped by Project ──────────────────────────────────────── */}
+      {/* ── Grouped by Project (bucket view) ────────────────────────── */}
       {!tasksLoading && !tasksError && groupBy === 'project' && groupedByProject && (
         <div className="space-y-6">
-          {groupedByProject.map(([key, group]) => (
-            <div key={key}>
-              <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-700">
-                <span>{group.label}</span>
-                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
-                  {group.tasks.length}
-                </span>
-              </h2>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {group.tasks.map((task) => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    onClick={() => handleTaskClick(task)}
-                  />
-                ))}
+          {groupedByProject.map(([key, group]) => {
+            const project = projects.find((p) => p.id === key)
+            const projectStatus = project ? STATUS_COLUMNS.find((c) => c.value === project.status) : null
+            const doneCount = group.tasks.filter((t) => t.status === 'done').length
+            const totalCount = group.tasks.length
+            const progressPct = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0
+            const hasOverdue = group.tasks.some(
+              (t) => t.due_date && new Date(t.due_date) < new Date() && t.status !== 'done',
+            )
+
+            return (
+              <div
+                key={key}
+                className={`rounded-xl border bg-white shadow-sm ${
+                  hasOverdue ? 'border-red-300' : 'border-gray-200'
+                }`}
+              >
+                {/* Project header */}
+                <div className="px-5 py-4 border-b border-gray-100">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h2 className="text-base font-bold text-gray-900">{group.label}</h2>
+                        {projectStatus && (
+                          <span className={`px-2.5 py-0.5 text-[10px] font-semibold rounded-full ${projectStatus.bg} ${projectStatus.color}`}>
+                            {projectStatus.label}
+                          </span>
+                        )}
+                        {hasOverdue && (
+                          <span className="px-2.5 py-0.5 text-[10px] font-semibold rounded-full bg-red-100 text-red-600">
+                            Overdue
+                          </span>
+                        )}
+                        <span className="text-xs text-gray-400">
+                          {doneCount}/{totalCount} done
+                        </span>
+                      </div>
+                      {project?.description && (
+                        <p className="text-sm text-gray-500 mt-1">{project.description}</p>
+                      )}
+                      {project?.department && (
+                        <span className="inline-block mt-1.5 px-2 py-0.5 text-[10px] font-semibold rounded-full bg-brand-50 text-brand-700">
+                          {project.department}
+                        </span>
+                      )}
+                    </div>
+                    {/* Progress bar */}
+                    <div className="shrink-0 w-24 pt-1">
+                      <div className="text-xs text-right text-gray-500 mb-1">{progressPct}%</div>
+                      <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${hasOverdue ? 'bg-red-500' : 'bg-brand-600'}`}
+                          style={{ width: `${progressPct}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                {/* Tasks grid */}
+                <div className="p-4">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {group.tasks.map((task) => (
+                      <TaskCard
+                        key={task.id}
+                        task={task}
+                        onClick={() => handleTaskClick(task)}
+                      />
+                    ))}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 

@@ -50,13 +50,15 @@ function linkIcon(type: ExternalLinkType['type']) {
 export default function TaskCard({ task, onClick }: TaskCardProps) {
   const urgency = urgencyConfig[task.urgency] ?? urgencyConfig.low
   const statusCol = STATUS_COLUMNS.find((c) => c.value === task.status)
-  const overdue =
-    task.due_date && isPast(new Date(task.due_date)) && !isToday(new Date(task.due_date))
+  const isOverdue =
+    task.due_date && isPast(new Date(task.due_date)) && !isToday(new Date(task.due_date)) && task.status !== 'done'
 
   return (
     <div
       onClick={onClick}
-      className="cursor-pointer rounded-xl border border-gray-200 bg-white p-3 shadow-sm transition-shadow hover:shadow-md"
+      className={`cursor-pointer rounded-xl border bg-white p-3 shadow-sm transition-shadow hover:shadow-md ${
+        isOverdue ? 'border-red-300 bg-red-50/30' : 'border-gray-200'
+      }`}
     >
       {/* Top row: status pill + urgency dot + sequence badge */}
       <div className="mb-1.5 flex items-center gap-1.5">
@@ -72,6 +74,13 @@ export default function TaskCard({ task, onClick }: TaskCardProps) {
         {/* Urgency dot */}
         <span className={`inline-block h-2 w-2 rounded-full ${urgency.dot}`} />
         <span className={`text-xs font-medium ${urgency.text}`}>{urgency.label}</span>
+
+        {/* Overdue badge */}
+        {isOverdue && (
+          <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-600">
+            Overdue
+          </span>
+        )}
 
         {/* Sequence badge */}
         {task.sequence != null && (
@@ -179,7 +188,7 @@ export default function TaskCard({ task, onClick }: TaskCardProps) {
           {task.due_date && (
             <span
               className={`flex items-center gap-1 text-xs font-medium ${
-                overdue ? 'text-red-600' : 'text-gray-500'
+                isOverdue ? 'text-red-600' : 'text-gray-500'
               }`}
             >
               <CalendarDays size={12} />

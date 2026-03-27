@@ -267,6 +267,7 @@ export default function SopFormModal({ template, onClose }: SopFormModalProps) {
                           </label>
                           <input
                             type="number"
+                            step="any"
                             min="0"
                             value={step.durationHours}
                             onChange={(e) =>

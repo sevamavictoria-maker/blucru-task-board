@@ -15,6 +15,7 @@ export interface Profile {
 export interface Project {
   id: string
   name: string
+  description: string | null
   department: string
   color: string | null
   status: TaskStatus
