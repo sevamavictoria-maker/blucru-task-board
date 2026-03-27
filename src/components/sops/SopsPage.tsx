@@ -1,18 +1,82 @@
-import { useState } from 'react'
-import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, ListChecks } from 'lucide-react'
-import type { SopTemplate } from '@/types/database'
-import { useSopTemplates, useDeleteSopTemplate } from '@/hooks/useSops'
+import { useState, useRef } from 'react'
+import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, ListChecks, Upload } from 'lucide-react'
+import * as XLSX from 'xlsx'
+import type { SopTemplate, TaskUrgency } from '@/types/database'
+import { useSopTemplates, useDeleteSopTemplate, useCreateSopTemplate, useCreateSopTask } from '@/hooks/useSops'
 import { URGENCY_OPTIONS } from '@/lib/constants'
 import SopFormModal from './SopFormModal'
 
 export default function SopsPage() {
   const { data: templates = [], isLoading, error } = useSopTemplates()
   const deleteMutation = useDeleteSopTemplate()
+  const createTemplate = useCreateSopTemplate()
+  const createTask = useCreateSopTask()
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [formOpen, setFormOpen] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<SopTemplate | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [importing, setImporting] = useState(false)
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImporting(true)
+
+    try {
+      const data = await file.arrayBuffer()
+      const workbook = XLSX.read(data, { type: 'array' })
+      const sheet = workbook.Sheets[workbook.SheetNames[0]]
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet)
+
+      if (rows.length === 0) {
+        alert('No data found in file.')
+        return
+      }
+
+      // Prompt for template name
+      const templateName = window.prompt('Enter SOP template name:', file.name.replace(/\.(xlsx|xls|csv)$/i, ''))
+      if (!templateName) return
+
+      const department = window.prompt('Enter department:', 'Operations') || 'Operations'
+
+      // Create the template
+      const template = await createTemplate.mutateAsync({
+        name: templateName,
+        department,
+        description: `Imported from ${file.name}`,
+      })
+
+      // Parse and create steps
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i]
+        // Support various column name formats
+        const title = String(row['Task Title'] || row['Title'] || row['task_title'] || row['title'] || row['Step Name'] || row['step_name'] || '')
+        const duration = Number(row['Duration (days)'] || row['Duration'] || row['duration_days'] || row['duration'] || 0)
+        const rawUrgency = String(row['Urgency'] || row['urgency'] || row['default_urgency'] || 'medium').toLowerCase()
+        const urgency = (['high', 'medium', 'low', 'scheduled'].includes(rawUrgency) ? rawUrgency : 'medium') as TaskUrgency
+        const sequence = Number(row['Step'] || row['step'] || row['Sequence'] || row['sequence'] || row['#'] || (i + 1))
+
+        if (!title) continue
+
+        await createTask.mutateAsync({
+          sop_template_id: template.id,
+          sequence,
+          title,
+          duration_days: duration || null,
+          default_urgency: urgency,
+        })
+      }
+
+      alert(`Imported "${templateName}" with ${rows.length} steps successfully.`)
+    } catch (err) {
+      alert('Import failed: ' + (err instanceof Error ? err.message : 'Unknown error'))
+    } finally {
+      setImporting(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
 
   function openCreate() {
     setEditingTemplate(null)
@@ -86,13 +150,26 @@ export default function SopsPage() {
             {templates.length}
           </span>
         </div>
-        <button
-          onClick={openCreate}
-          className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-brand-700"
-        >
-          <Plus size={16} />
-          Create Template
-        </button>
+        <div className="flex items-center gap-2">
+          <label className={`flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-medium text-brand-600 shadow-sm transition-colors hover:bg-brand-100 cursor-pointer ${importing ? 'opacity-50 pointer-events-none' : ''}`}>
+            <Upload size={16} />
+            {importing ? 'Importing...' : 'Upload Excel/CSV'}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+          </label>
+          <button
+            onClick={openCreate}
+            className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-brand-700"
+          >
+            <Plus size={16} />
+            Create Template
+          </button>
+        </div>
       </div>
 
       {/* Empty state */}
