@@ -19,7 +19,7 @@ interface StepDraft {
   /** Existing task id, or null for new steps */
   existingId: string | null
   title: string
-  durationDays: string
+  durationHours: string
   urgency: TaskUrgency
 }
 
@@ -31,7 +31,7 @@ function buildInitialSteps(template: SopTemplate | null): StepDraft[] {
   return template.tasks.map((t) => ({
     existingId: t.id,
     title: t.title,
-    durationDays: t.duration_days?.toString() ?? '',
+    durationHours: t.duration_hours?.toString() ?? '',
     urgency: t.default_urgency,
   }))
 }
@@ -62,7 +62,7 @@ export default function SopFormModal({ template, onClose }: SopFormModalProps) {
   function addStep() {
     setSteps((prev) => [
       ...prev,
-      { existingId: null, title: '', durationDays: '', urgency: 'medium' },
+      { existingId: null, title: '', durationHours: '', urgency: 'medium' },
     ])
   }
 
@@ -125,7 +125,7 @@ export default function SopFormModal({ template, onClose }: SopFormModalProps) {
           const payload = {
             sequence: index + 1,
             title: step.title.trim(),
-            duration_days: step.durationDays ? parseInt(step.durationDays, 10) : null,
+            duration_hours: step.durationHours ? parseInt(step.durationHours, 10) : null,
             default_urgency: step.urgency,
           }
 
@@ -263,14 +263,14 @@ export default function SopFormModal({ template, onClose }: SopFormModalProps) {
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <label className="mb-0.5 block text-[10px] font-medium text-gray-500">
-                            Duration (days)
+                            Duration (hours)
                           </label>
                           <input
                             type="number"
                             min="0"
-                            value={step.durationDays}
+                            value={step.durationHours}
                             onChange={(e) =>
-                              updateStepField(index, 'durationDays', e.target.value)
+                              updateStepField(index, 'durationHours', e.target.value)
                             }
                             placeholder="Optional"
                             className={inputClass}

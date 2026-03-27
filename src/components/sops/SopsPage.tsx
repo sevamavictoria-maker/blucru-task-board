@@ -53,7 +53,7 @@ export default function SopsPage() {
         const row = rows[i]
         // Support various column name formats
         const title = String(row['Task Title'] || row['Title'] || row['task_title'] || row['title'] || row['Step Name'] || row['step_name'] || '')
-        const duration = Number(row['Duration (days)'] || row['Duration'] || row['duration_days'] || row['duration'] || 0)
+        const duration = Number(row['Duration (days)'] || row['Duration'] || row['duration_hours'] || row['duration'] || 0)
         const rawUrgency = String(row['Urgency'] || row['urgency'] || row['default_urgency'] || 'medium').toLowerCase()
         const urgency = (['high', 'medium', 'low', 'scheduled'].includes(rawUrgency) ? rawUrgency : 'medium') as TaskUrgency
         const sequence = Number(row['Step'] || row['step'] || row['Sequence'] || row['sequence'] || row['#'] || (i + 1))
@@ -64,7 +64,7 @@ export default function SopsPage() {
           sop_template_id: template.id,
           sequence,
           title,
-          duration_days: duration || null,
+          duration_hours: duration || null,
           default_urgency: urgency,
         })
       }
@@ -278,9 +278,9 @@ export default function SopsPage() {
                             <span className="flex-1 text-sm font-medium text-gray-700">
                               {step.title}
                             </span>
-                            {step.duration_days != null && (
+                            {step.duration_hours != null && (
                               <span className="text-xs text-gray-400">
-                                {step.duration_days}d
+                                {step.duration_hours}h{step.duration_hours >= 8 ? ` (${(step.duration_hours / 8).toFixed(step.duration_hours % 8 === 0 ? 0 : 1)}d)` : ''}
                               </span>
                             )}
                             {getUrgencyBadge(step.default_urgency)}

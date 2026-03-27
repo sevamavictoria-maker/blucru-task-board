@@ -98,7 +98,7 @@ export function useCreateSopTask() {
     mutationFn: async (
       task: Pick<
         SopTemplateTask,
-        'sop_template_id' | 'sequence' | 'title' | 'duration_days' | 'default_urgency'
+        'sop_template_id' | 'sequence' | 'title' | 'duration_hours' | 'default_urgency'
       >
     ) => {
       const { data, error } = await supabase
@@ -125,7 +125,7 @@ export function useUpdateSopTask() {
       ...updates
     }: Pick<SopTemplateTask, 'id'> &
       Partial<
-        Pick<SopTemplateTask, 'sequence' | 'title' | 'duration_days' | 'default_urgency'>
+        Pick<SopTemplateTask, 'sequence' | 'title' | 'duration_hours' | 'default_urgency'>
       >) => {
       const { data, error } = await supabase
         .from('sop_template_tasks')

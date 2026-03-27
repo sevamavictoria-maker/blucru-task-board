@@ -72,7 +72,7 @@ export interface SopTemplateTask {
   sop_template_id: string
   sequence: number
   title: string
-  duration_days: number | null
+  duration_hours: number | null
   default_urgency: TaskUrgency
   created_at: string
 }
