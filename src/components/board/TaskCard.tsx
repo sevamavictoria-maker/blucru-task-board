@@ -6,6 +6,7 @@ import {
   FileSpreadsheet,
   FileText,
   Globe,
+  Trash2,
 } from 'lucide-react'
 import type { Task, ExternalLink as ExternalLinkType } from '@/types/database'
 import { STATUS_COLUMNS } from '@/lib/constants'
@@ -15,6 +16,7 @@ import { STATUS_COLUMNS } from '@/lib/constants'
 interface TaskCardProps {
   task: Task
   onClick: () => void
+  onDelete?: (task: Task) => void
 }
 
 /* ── Config ─────────────────────────────────────────────────────────── */
@@ -47,7 +49,7 @@ function linkIcon(type: ExternalLinkType['type']) {
 
 /* ── Component ──────────────────────────────────────────────────────── */
 
-export default function TaskCard({ task, onClick }: TaskCardProps) {
+export default function TaskCard({ task, onClick, onDelete }: TaskCardProps) {
   const urgency = urgencyConfig[task.urgency] ?? urgencyConfig.low
   const statusCol = STATUS_COLUMNS.find((c) => c.value === task.status)
   const isOverdue =
@@ -198,6 +200,20 @@ export default function TaskCard({ task, onClick }: TaskCardProps) {
                   ? formatDistanceToNow(new Date(task.due_date), { addSuffix: true })
                   : format(new Date(task.due_date), 'MMM d')}
             </span>
+          )}
+
+          {/* Delete */}
+          {onDelete && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                if (window.confirm(`Delete "${task.title}"?`)) onDelete(task)
+              }}
+              className="rounded p-1 text-gray-300 transition-colors hover:bg-red-50 hover:text-red-500"
+              title="Delete task"
+            >
+              <Trash2 size={12} />
+            </button>
           )}
         </div>
       </div>

@@ -8,11 +8,12 @@ interface TaskColumnProps {
   status: TaskStatus
   tasks: Task[]
   onTaskClick: (task: Task) => void
+  onDeleteTask?: (task: Task) => void
 }
 
 /* ── Component ──────────────────────────────────────────────────────── */
 
-export default function TaskColumn({ status, tasks, onTaskClick }: TaskColumnProps) {
+export default function TaskColumn({ status, tasks, onTaskClick, onDeleteTask }: TaskColumnProps) {
   const col = STATUS_COLUMNS.find((c) => c.value === status)
   const label = col?.label ?? status
   const colorClass = col?.color ?? 'text-gray-600'
@@ -48,6 +49,7 @@ export default function TaskColumn({ status, tasks, onTaskClick }: TaskColumnPro
             key={task.id}
             task={task}
             onClick={() => onTaskClick(task)}
+            onDelete={onDeleteTask}
           />
         ))}
       </div>

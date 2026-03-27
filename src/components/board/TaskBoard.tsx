@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import { isToday, isThisWeek, isThisMonth } from 'date-fns'
 import type { Task, TaskStatus } from '@/types/database'
-import { useTasks, useCreateTask, useUpdateTask } from '@/hooks/useTasks'
+import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from '@/hooks/useTasks'
 import { useProjects, useCreateProject } from '@/hooks/useProjects'
 import { useUsers } from '@/hooks/useUsers'
 import { useSopTemplates } from '@/hooks/useSops'
@@ -57,6 +57,7 @@ export default function TaskBoard() {
   const { session, profile } = useAuth()
   const updateTask = useUpdateTask()
   const createTask = useCreateTask()
+  const deleteTask = useDeleteTask()
   const createProject = useCreateProject()
   const createNotification = useCreateNotification()
   const addActivity = useAddActivity()
@@ -153,6 +154,14 @@ export default function TaskBoard() {
 
   const handleTaskClick = useCallback((task: Task) => setDetailTask(task), [])
 
+  const handleDeleteTask = useCallback(
+    (task: Task) => {
+      deleteTask.mutate(task.id)
+      if (detailTask?.id === task.id) setDetailTask(null)
+    },
+    [deleteTask, detailTask],
+  )
+
   const handleStatusChange = useCallback(
     (taskId: string, newStatus: TaskStatus) => {
       const task = tasks.find((t) => t.id === taskId)
@@ -216,6 +225,7 @@ export default function TaskBoard() {
       try {
         const newProject = await createProject.mutateAsync({
           name: projectName.trim(),
+          description: template.description,
           department: template.department,
           color: null,
           status: 'new' as TaskStatus,
@@ -454,6 +464,7 @@ export default function TaskBoard() {
               status={col.value}
               tasks={filtered.filter((t) => t.status === col.value)}
               onTaskClick={handleTaskClick}
+              onDeleteTask={handleDeleteTask}
             />
           ))}
         </div>
@@ -476,6 +487,7 @@ export default function TaskBoard() {
                     key={task.id}
                     task={task}
                     onClick={() => handleTaskClick(task)}
+                    onDelete={handleDeleteTask}
                   />
                 ))}
               </div>
@@ -553,6 +565,7 @@ export default function TaskBoard() {
                         key={task.id}
                         task={task}
                         onClick={() => handleTaskClick(task)}
+                        onDelete={handleDeleteTask}
                       />
                     ))}
                   </div>
