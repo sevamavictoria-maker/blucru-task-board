@@ -14,6 +14,7 @@ const ReportsPage = lazy(() => import('@/components/reports/ReportsPage'))
 const SopsPage = lazy(() => import('@/components/sops/SopsPage'))
 const ProjectsPage = lazy(() => import('@/pages/ProjectsPage'))
 const InvitePage = lazy(() => import('@/pages/InvitePage'))
+const FaqPage = lazy(() => import('@/pages/FaqPage'))
 
 function Fallback() {
   return (
@@ -53,6 +54,7 @@ function App() {
               <Route path="/sops" element={<SopsPage />} />
               <Route path="/projects" element={<ProjectsPage />} />
               <Route path="/team" element={<InvitePage />} />
+              <Route path="/faq" element={<FaqPage />} />
             </Route>
           </Routes>
         </Suspense>

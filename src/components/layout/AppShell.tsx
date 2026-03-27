@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { LayoutDashboard, BarChart3, FileBarChart, LogOut, BookOpen, Users, FolderOpen } from 'lucide-react'
+import { LayoutDashboard, BarChart3, FileBarChart, LogOut, BookOpen, Users, FolderOpen, HelpCircle } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 
 const navItems = [
@@ -9,6 +9,7 @@ const navItems = [
   { to: '/sops', label: 'SOPs', icon: BookOpen },
   { to: '/projects', label: 'Projects', icon: FolderOpen },
   { to: '/team', label: 'Team', icon: Users },
+  { to: '/faq', label: 'FAQ', icon: HelpCircle },
 ] as const
 
 export default function AppShell() {
