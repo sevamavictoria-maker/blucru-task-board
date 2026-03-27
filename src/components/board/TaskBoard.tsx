@@ -76,6 +76,7 @@ export default function TaskBoard() {
   const [detailTask, setDetailTask] = useState<Task | null>(null)
   const [sopDropdownOpen, setSopDropdownOpen] = useState(false)
   const [sopCreating, setSopCreating] = useState(false)
+  const [sopModalTemplate, setSopModalTemplate] = useState<string | null>(null)
 
   const userId = session?.user?.id
   const currentUserName = profile?.full_name ?? session?.user?.email ?? 'Someone'
@@ -203,72 +204,73 @@ export default function TaskBoard() {
 
   /* ── SOP Template handler ─────────────────────────────────────────── */
 
-  const handleSopSelect = useCallback(
-    async (templateId: string) => {
-      const template = sopTemplates.find((s) => s.id === templateId)
-      if (!template?.tasks?.length) return
+  function handleSopDropdownSelect(templateId: string) {
+    setSopDropdownOpen(false)
+    setSopModalTemplate(templateId)
+  }
 
-      const projectName = window.prompt(
-        `Enter a project name for the SOP "${template.name}":`,
-      )
-      if (!projectName?.trim()) return
+  async function handleSopConfirm(opts: { templateId: string; projectId: string | null; projectName: string; startDate: string }) {
+    const template = sopTemplates.find((s) => s.id === opts.templateId)
+    if (!template?.tasks?.length) return
 
-      const startDateStr = window.prompt(
-        'Start date (YYYY-MM-DD):',
-        new Date().toISOString().slice(0, 10),
-      )
-      if (!startDateStr) return
+    setSopModalTemplate(null)
+    setSopCreating(true)
 
-      setSopDropdownOpen(false)
-      setSopCreating(true)
+    try {
+      let projectId = opts.projectId
 
-      try {
+      // Create new project if none selected
+      if (!projectId) {
         const newProject = await createProject.mutateAsync({
-          name: projectName.trim(),
+          name: opts.projectName.trim(),
           description: template.description,
           department: template.department,
           color: null,
           status: 'new' as TaskStatus,
           sop_template_id: template.id,
           external_links: [],
+          created_by: userId ?? null,
+          start_date: opts.startDate,
+          end_date: null,
+          archived: false,
         })
-
-        // Calculate due dates by stacking duration hours (8h = 1 working day)
-        let cumulativeHours = 0
-        const sortedSteps = [...template.tasks].sort((a, b) => a.sequence - b.sequence)
-
-        for (const step of sortedSteps) {
-          cumulativeHours += step.duration_hours ?? 8
-          const daysOffset = Math.ceil(cumulativeHours / 8)
-          const dueDate = new Date(startDateStr)
-          dueDate.setDate(dueDate.getDate() + daysOffset)
-
-          await createTask.mutateAsync({
-            title: step.title,
-            description: null,
-            department: template.department,
-            project_id: newProject.id,
-            urgency: step.default_urgency,
-            status: 'new' as TaskStatus,
-            assignee_id: null,
-            assigned_by: null,
-            due_date: dueDate.toISOString().slice(0, 10),
-            tags: [],
-            file_links: [],
-            sequence: step.sequence,
-            recurring_frequency: null,
-            recurring_auto_create: false,
-            recurring_parent_id: null,
-          })
-        }
-      } catch {
-        // errors surfaced via react-query
-      } finally {
-        setSopCreating(false)
+        projectId = newProject.id
       }
-    },
-    [sopTemplates, createProject, createTask],
-  )
+
+      // Calculate due dates by stacking duration hours (8h = 1 working day)
+      let cumulativeHours = 0
+      const sortedSteps = [...template.tasks].sort((a, b) => a.sequence - b.sequence)
+
+      for (const step of sortedSteps) {
+        cumulativeHours += step.duration_hours ?? 8
+        const daysOffset = Math.ceil(cumulativeHours / 8)
+        const dueDate = new Date(opts.startDate)
+        dueDate.setDate(dueDate.getDate() + daysOffset)
+
+        await createTask.mutateAsync({
+          title: step.title,
+          description: null,
+          department: template.department,
+          project_id: projectId,
+          urgency: step.default_urgency,
+          status: 'new' as TaskStatus,
+          assignee_id: null,
+          assigned_by: null,
+          due_date: dueDate.toISOString().slice(0, 10),
+          tags: [],
+          file_links: [],
+          sequence: step.sequence,
+          recurring_frequency: null,
+          recurring_auto_create: false,
+          recurring_parent_id: null,
+        })
+      }
+    } catch {
+      // errors surfaced via react-query
+    } finally {
+      setSopCreating(false)
+    }
+  }
 
   /* ── Select class ─────────────────────────────────────────────────── */
 
@@ -332,7 +334,7 @@ export default function TaskBoard() {
                     sopTemplates.map((sop) => (
                       <button
                         key={sop.id}
-                        onClick={() => handleSopSelect(sop.id)}
+                        onClick={() => handleSopDropdownSelect(sop.id)}
                         className="block w-full px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50"
                       >
                         <span className="font-medium">{sop.name}</span>
@@ -608,6 +610,135 @@ export default function TaskBoard() {
           onStatusChange={handleStatusChange}
         />
       )}
+
+      {sopModalTemplate && (
+        <SopProjectModal
+          templateId={sopModalTemplate}
+          templateName={sopTemplates.find((s) => s.id === sopModalTemplate)?.name ?? ''}
+          projects={projects}
+          onClose={() => setSopModalTemplate(null)}
+          onConfirm={handleSopConfirm}
+        />
+      )}
+    </div>
+  )
+}
+
+/* ── SOP Project Picker Modal ──────────────────────────────────────── */
+
+function SopProjectModal({
+  templateId,
+  templateName,
+  projects,
+  onClose,
+  onConfirm,
+}: {
+  templateId: string
+  templateName: string
+  projects: { id: string; name: string }[]
+  onClose: () => void
+  onConfirm: (opts: { templateId: string; projectId: string | null; projectName: string; startDate: string }) => void
+}) {
+  const [mode, setMode] = useState<'existing' | 'new'>('new')
+  const [selectedProjectId, setSelectedProjectId] = useState('')
+  const [projectName, setProjectName] = useState('')
+  const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10))
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (mode === 'new' && !projectName.trim()) return
+    if (mode === 'existing' && !selectedProjectId) return
+
+    onConfirm({
+      templateId,
+      projectId: mode === 'existing' ? selectedProjectId : null,
+      projectName: mode === 'new' ? projectName.trim() : '',
+      startDate,
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 pt-[10vh]">
+      <form onSubmit={handleSubmit} className="slide-in w-full max-w-md rounded-2xl bg-white shadow-xl">
+        <div className="border-b border-gray-100 px-6 py-4">
+          <h2 className="text-lg font-semibold text-gray-900">
+            Create Tasks from "{templateName}"
+          </h2>
+        </div>
+
+        <div className="space-y-4 px-6 py-5">
+          {/* Mode toggle */}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setMode('new')}
+              className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                mode === 'new' ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              New Project
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('existing')}
+              className={`flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                mode === 'existing' ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              Existing Project
+            </button>
+          </div>
+
+          {mode === 'new' ? (
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Project Name *</label>
+              <input
+                type="text"
+                value={projectName}
+                onChange={(e) => setProjectName(e.target.value)}
+                placeholder="e.g. Client Onboarding - Acme Corp"
+                required
+                className="input"
+              />
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Select Project *</label>
+              <select
+                value={selectedProjectId}
+                onChange={(e) => setSelectedProjectId(e.target.value)}
+                required
+                className="input"
+              >
+                <option value="">Choose a project...</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Start Date</label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="input"
+            />
+            <p className="text-[10px] text-gray-400 mt-1">Due dates will be calculated from this date based on each step's duration.</p>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-end gap-3 border-t border-gray-100 px-6 py-4">
+          <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">
+            Cancel
+          </button>
+          <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-brand-600 rounded-lg hover:bg-brand-700">
+            Create Tasks
+          </button>
+        </div>
+      </form>
     </div>
   )
 }
