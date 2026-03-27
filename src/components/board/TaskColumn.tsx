@@ -44,7 +44,7 @@ export default function TaskColumn({ status, tasks, onTaskClick, onDeleteTask }:
         {tasks.length === 0 && (
           <p className="py-6 text-center text-xs text-gray-400">No tasks</p>
         )}
-        {tasks.map((task) => (
+        {[...tasks].sort((a, b) => (a.sequence ?? 999) - (b.sequence ?? 999)).map((task) => (
           <TaskCard
             key={task.id}
             task={task}

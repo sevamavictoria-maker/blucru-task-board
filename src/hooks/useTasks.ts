@@ -15,6 +15,7 @@ export function useTasks() {
       const { data, error } = await supabase
         .from('tasks')
         .select(TASK_SELECT)
+        .order('sequence', { ascending: true, nullsFirst: false })
         .order('created_at', { ascending: false })
 
       if (error) throw error
