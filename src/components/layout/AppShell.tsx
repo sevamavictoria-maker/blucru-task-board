@@ -1,11 +1,13 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { LayoutDashboard, BarChart3, FileBarChart, LogOut } from 'lucide-react'
+import { LayoutDashboard, BarChart3, FileBarChart, LogOut, BookOpen, Users } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 
 const navItems = [
   { to: '/board', label: 'Board', icon: LayoutDashboard },
   { to: '/dashboard', label: 'Dashboard', icon: BarChart3 },
   { to: '/reports', label: 'Reports', icon: FileBarChart },
+  { to: '/sops', label: 'SOPs', icon: BookOpen },
+  { to: '/team', label: 'Team', icon: Users },
 ] as const
 
 export default function AppShell() {

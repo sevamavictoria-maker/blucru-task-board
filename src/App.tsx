@@ -7,9 +7,12 @@ import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 import AppShell from '@/components/layout/AppShell'
 
 const LoginPage = lazy(() => import('@/pages/LoginPage'))
+const SetPasswordPage = lazy(() => import('@/pages/SetPasswordPage'))
 const TaskBoard = lazy(() => import('@/components/board/TaskBoard'))
 const DashboardPage = lazy(() => import('@/components/dashboard/DashboardPage'))
 const ReportsPage = lazy(() => import('@/components/reports/ReportsPage'))
+const SopsPage = lazy(() => import('@/components/sops/SopsPage'))
+const InvitePage = lazy(() => import('@/pages/InvitePage'))
 
 function Fallback() {
   return (
@@ -34,6 +37,7 @@ function App() {
           <Routes>
             <Route path="/" element={<RootRedirect />} />
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/set-password" element={<SetPasswordPage />} />
 
             <Route
               element={
@@ -45,6 +49,8 @@ function App() {
               <Route path="/board" element={<TaskBoard />} />
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/reports" element={<ReportsPage />} />
+              <Route path="/sops" element={<SopsPage />} />
+              <Route path="/team" element={<InvitePage />} />
             </Route>
           </Routes>
         </Suspense>
