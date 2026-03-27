@@ -2,7 +2,9 @@ import { useState, useRef } from 'react'
 import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, ListChecks, Upload, Download } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import type { SopTemplate, TaskUrgency } from '@/types/database'
-import { useSopTemplates, useDeleteSopTemplate, useCreateSopTemplate, useCreateSopTask } from '@/hooks/useSops'
+import { useSopTemplates, useDeleteSopTemplate, useCreateSopTemplate } from '@/hooks/useSops'
+import { supabase } from '@/lib/supabase'
+import { useQueryClient } from '@tanstack/react-query'
 import { URGENCY_OPTIONS } from '@/lib/constants'
 import SopFormModal from './SopFormModal'
 
@@ -10,7 +12,7 @@ export default function SopsPage() {
   const { data: templates = [], isLoading, error } = useSopTemplates()
   const deleteMutation = useDeleteSopTemplate()
   const createTemplate = useCreateSopTemplate()
-  const createTask = useCreateSopTask()
+  const queryClient = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [formOpen, setFormOpen] = useState(false)
@@ -61,28 +63,34 @@ export default function SopsPage() {
         description: `Imported from ${file.name}`,
       })
 
-      // Parse and create steps
-      for (let i = 0; i < rows.length; i++) {
-        const row = rows[i]
-        // Support various column name formats
-        const title = String(row['Task Title'] || row['Title'] || row['task_title'] || row['title'] || row['Step Name'] || row['step_name'] || '')
-        const duration = Number(row['Duration (hours)'] || row['Duration (days)'] || row['Duration'] || row['duration_hours'] || row['duration'] || 0)
-        const rawUrgency = String(row['Urgency'] || row['urgency'] || row['default_urgency'] || 'medium').toLowerCase()
-        const urgency = (['high', 'medium', 'low', 'scheduled'].includes(rawUrgency) ? rawUrgency : 'medium') as TaskUrgency
-        const sequence = Number(row['Step'] || row['step'] || row['Sequence'] || row['sequence'] || row['#'] || (i + 1))
-
-        if (!title) continue
-
-        await createTask.mutateAsync({
-          sop_template_id: template.id,
-          sequence,
-          title,
-          duration_hours: duration || null,
-          default_urgency: urgency,
+      // Parse all steps
+      const steps = rows
+        .map((row, i) => {
+          const title = String(row['Task Title'] || row['Title'] || row['task_title'] || row['title'] || row['Step Name'] || row['step_name'] || '').trim()
+          if (!title) return null
+          const duration = Number(row['Duration (hours)'] || row['Duration (days)'] || row['Duration'] || row['duration_hours'] || row['duration'] || 0)
+          const rawUrgency = String(row['Urgency'] || row['urgency'] || row['default_urgency'] || 'medium').toLowerCase()
+          const urgency = (['high', 'medium', 'low', 'scheduled'].includes(rawUrgency) ? rawUrgency : 'medium') as TaskUrgency
+          const sequence = Number(row['Step'] || row['step'] || row['Sequence'] || row['sequence'] || row['#'] || (i + 1))
+          return {
+            sop_template_id: template.id,
+            sequence,
+            title,
+            duration_hours: duration || null,
+            default_urgency: urgency,
+          }
         })
-      }
+        .filter(Boolean)
 
-      alert(`Imported "${templateName}" with ${rows.length} steps successfully.`)
+      // Batch insert all steps at once
+      const { error: stepsError } = await supabase
+        .from('sop_template_tasks')
+        .insert(steps)
+
+      if (stepsError) throw stepsError
+
+      queryClient.invalidateQueries({ queryKey: ['sop-templates'] })
+      alert(`Imported "${templateName}" with ${steps.length} steps successfully.`)
     } catch (err) {
       alert('Import failed: ' + (err instanceof Error ? err.message : 'Unknown error'))
     } finally {
