@@ -2,15 +2,20 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import type { Project } from '@/types/database'
 
-export function useProjects() {
+export function useProjects(includeArchived = false) {
   return useQuery<Project[]>({
-    queryKey: ['projects'],
+    queryKey: ['projects', includeArchived],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('projects')
-        .select('*')
+        .select('*, creator:profiles!projects_created_by_fkey(id, full_name, email)')
         .order('name')
 
+      if (!includeArchived) {
+        query = query.eq('archived', false)
+      }
+
+      const { data, error } = await query
       if (error) throw error
       return data as Project[]
     },
@@ -21,11 +26,11 @@ export function useCreateProject() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (project: Omit<Project, 'id' | 'created_at'>) => {
+    mutationFn: async (project: Omit<Project, 'id' | 'created_at' | 'creator'>) => {
       const { data, error } = await supabase
         .from('projects')
         .insert(project)
-        .select()
+        .select('*, creator:profiles!projects_created_by_fkey(id, full_name, email)')
         .single()
 
       if (error) throw error
@@ -42,11 +47,12 @@ export function useUpdateProject() {
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<Project> & { id: string }) => {
+      const { creator: _c, ...clean } = updates as Record<string, unknown>
       const { data, error } = await supabase
         .from('projects')
-        .update(updates)
+        .update(clean)
         .eq('id', id)
-        .select()
+        .select('*, creator:profiles!projects_created_by_fkey(id, full_name, email)')
         .single()
 
       if (error) throw error

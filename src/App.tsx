@@ -12,6 +12,7 @@ const TaskBoard = lazy(() => import('@/components/board/TaskBoard'))
 const DashboardPage = lazy(() => import('@/components/dashboard/DashboardPage'))
 const ReportsPage = lazy(() => import('@/components/reports/ReportsPage'))
 const SopsPage = lazy(() => import('@/components/sops/SopsPage'))
+const ProjectsPage = lazy(() => import('@/pages/ProjectsPage'))
 const InvitePage = lazy(() => import('@/pages/InvitePage'))
 
 function Fallback() {
@@ -50,6 +51,7 @@ function App() {
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/reports" element={<ReportsPage />} />
               <Route path="/sops" element={<SopsPage />} />
+              <Route path="/projects" element={<ProjectsPage />} />
               <Route path="/team" element={<InvitePage />} />
             </Route>
           </Routes>

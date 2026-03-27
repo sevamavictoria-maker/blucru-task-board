@@ -21,7 +21,12 @@ export interface Project {
   status: TaskStatus
   sop_template_id: string | null
   external_links: ExternalLink[]
+  created_by: string | null
+  start_date: string | null
+  end_date: string | null
+  archived: boolean
   created_at: string
+  creator?: Profile | null
 }
 
 export interface ExternalLink {
