@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, ListChecks, Upload } from 'lucide-react'
+import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, ListChecks, Upload, Download } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import type { SopTemplate, TaskUrgency } from '@/types/database'
 import { useSopTemplates, useDeleteSopTemplate, useCreateSopTemplate, useCreateSopTask } from '@/hooks/useSops'
@@ -18,6 +18,19 @@ export default function SopsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [importing, setImporting] = useState(false)
+
+  function downloadTemplate() {
+    const wb = XLSX.utils.book_new()
+    const data = [
+      { 'Step': 1, 'Task Title': 'Example: Gather documents', 'Duration (hours)': 4, 'Urgency': 'high' },
+      { 'Step': 2, 'Task Title': 'Example: Review and verify', 'Duration (hours)': 8, 'Urgency': 'medium' },
+      { 'Step': 3, 'Task Title': 'Example: Submit for approval', 'Duration (hours)': 2, 'Urgency': 'low' },
+    ]
+    const ws = XLSX.utils.json_to_sheet(data)
+    ws['!cols'] = [{ wch: 6 }, { wch: 40 }, { wch: 18 }, { wch: 12 }]
+    XLSX.utils.book_append_sheet(wb, ws, 'SOP Template')
+    XLSX.writeFile(wb, 'SOP_Upload_Template.xlsx')
+  }
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -53,7 +66,7 @@ export default function SopsPage() {
         const row = rows[i]
         // Support various column name formats
         const title = String(row['Task Title'] || row['Title'] || row['task_title'] || row['title'] || row['Step Name'] || row['step_name'] || '')
-        const duration = Number(row['Duration (days)'] || row['Duration'] || row['duration_hours'] || row['duration'] || 0)
+        const duration = Number(row['Duration (hours)'] || row['Duration (days)'] || row['Duration'] || row['duration_hours'] || row['duration'] || 0)
         const rawUrgency = String(row['Urgency'] || row['urgency'] || row['default_urgency'] || 'medium').toLowerCase()
         const urgency = (['high', 'medium', 'low', 'scheduled'].includes(rawUrgency) ? rawUrgency : 'medium') as TaskUrgency
         const sequence = Number(row['Step'] || row['step'] || row['Sequence'] || row['sequence'] || row['#'] || (i + 1))
@@ -151,6 +164,13 @@ export default function SopsPage() {
           </span>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={downloadTemplate}
+            className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+          >
+            <Download size={16} />
+            Template
+          </button>
           <label className={`flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-medium text-brand-600 shadow-sm transition-colors hover:bg-brand-100 cursor-pointer ${importing ? 'opacity-50 pointer-events-none' : ''}`}>
             <Upload size={16} />
             {importing ? 'Importing...' : 'Upload Excel/CSV'}
