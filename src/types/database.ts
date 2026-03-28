@@ -79,6 +79,17 @@ export interface Notification {
   task?: Task | null
 }
 
+export interface Subtask {
+  id: string
+  task_id: string
+  title: string
+  completed: boolean
+  sequence: number
+  assignee_id: string | null
+  assignee?: Profile | null
+  created_at: string
+}
+
 export interface SopTemplate {
   id: string
   name: string

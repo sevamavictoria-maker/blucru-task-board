@@ -5,7 +5,8 @@ import type { Task } from '@/types/database'
 const TASK_SELECT = `
   *,
   assignee:profiles!tasks_assignee_id_fkey(id, full_name, email, avatar),
-  project:projects(id, name, department, color)
+  project:projects(id, name, department, color),
+  subtasks:subtasks(id, completed)
 `
 
 export function useTasks() {
@@ -19,7 +20,15 @@ export function useTasks() {
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      return data as Task[]
+      return (data as (Task & { subtasks?: { id: string; completed: boolean }[] })[]).map((t) => {
+        const subs = t.subtasks ?? []
+        return {
+          ...t,
+          subtask_count: subs.length,
+          subtask_done: subs.filter((s) => s.completed).length,
+          subtasks: undefined,
+        }
+      }) as Task[]
     },
   })
 }

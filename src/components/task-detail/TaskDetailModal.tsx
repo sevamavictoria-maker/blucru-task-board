@@ -24,6 +24,7 @@ import {
 import { formatDistanceToNow } from 'date-fns'
 import { useTaskActivity, useAddComment, useAddActivity } from '@/hooks/useTaskActivity'
 import { useCreateTask, useUpdateTask } from '@/hooks/useTasks'
+import { useSubtasks, useCreateSubtask, useUpdateSubtask, useDeleteSubtask } from '@/hooks/useSubtasks'
 import { useUsers } from '@/hooks/useUsers'
 import { useAuth } from '@/hooks/useAuth'
 import { useCreateNotification } from '@/hooks/useNotifications'
@@ -111,6 +112,12 @@ export default function TaskDetailModal({
   const createTask = useCreateTask()
   const updateTask = useUpdateTask()
   const createNotification = useCreateNotification()
+
+  const { data: subtasks = [] } = useSubtasks(task.id)
+  const createSubtask = useCreateSubtask()
+  const updateSubtask = useUpdateSubtask()
+  const deleteSubtask = useDeleteSubtask()
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState('')
 
   const urgencyConfig = URGENCY_OPTIONS.find((u) => u.value === task.urgency)
 
@@ -518,6 +525,87 @@ export default function TaskDetailModal({
             <Copy size={14} />
             {createTask.isPending ? 'Duplicating...' : 'Duplicate Task'}
           </button>
+        </div>
+
+        {/* Subtasks / Checklist */}
+        <div className="border-t border-gray-100 p-6 py-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+              Subtasks {subtasks.length > 0 && `(${subtasks.filter(s => s.completed).length}/${subtasks.length})`}
+            </p>
+          </div>
+
+          {/* Progress bar */}
+          {subtasks.length > 0 && (
+            <div className="mb-3">
+              <div className="h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-brand-600 transition-all"
+                  style={{ width: `${Math.round((subtasks.filter(s => s.completed).length / subtasks.length) * 100)}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Subtask list */}
+          <div className="space-y-1.5 mb-3">
+            {subtasks.map((sub) => (
+              <div key={sub.id} className="flex items-center gap-2 group rounded-lg px-2 py-1.5 hover:bg-gray-50">
+                <input
+                  type="checkbox"
+                  checked={sub.completed}
+                  onChange={() => updateSubtask.mutate({ id: sub.id, task_id: task.id, completed: !sub.completed })}
+                  className="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
+                />
+                <span className={`flex-1 text-sm ${sub.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+                  {sub.title}
+                </span>
+                {sub.assignee && (
+                  <span className="text-[10px] text-gray-400">{sub.assignee.full_name ?? sub.assignee.email}</span>
+                )}
+                <button
+                  onClick={() => deleteSubtask.mutate({ id: sub.id, task_id: task.id })}
+                  className="opacity-0 group-hover:opacity-100 p-0.5 text-gray-300 hover:text-red-500 transition-all"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* Add subtask */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (!newSubtaskTitle.trim()) return
+              createSubtask.mutate({
+                task_id: task.id,
+                title: newSubtaskTitle.trim(),
+                sequence: subtasks.length + 1,
+                assignee_id: null,
+              })
+              setNewSubtaskTitle('')
+            }}
+            className="flex items-center gap-2"
+          >
+            <Plus size={14} className="text-gray-400 shrink-0" />
+            <input
+              type="text"
+              value={newSubtaskTitle}
+              onChange={(e) => setNewSubtaskTitle(e.target.value)}
+              placeholder="Add a subtask..."
+              className="flex-1 text-sm text-gray-700 outline-none bg-transparent placeholder:text-gray-400 py-1"
+            />
+            {newSubtaskTitle.trim() && (
+              <button
+                type="submit"
+                disabled={createSubtask.isPending}
+                className="text-xs font-medium text-brand-600 hover:text-brand-700 disabled:opacity-50"
+              >
+                Add
+              </button>
+            )}
+          </form>
         </div>
 
         {/* Activity Timeline */}

@@ -7,6 +7,7 @@ import {
   FileText,
   Globe,
   Trash2,
+  CheckSquare,
 } from 'lucide-react'
 import type { Task, ExternalLink as ExternalLinkType } from '@/types/database'
 import { STATUS_COLUMNS } from '@/lib/constants'
@@ -14,7 +15,7 @@ import { STATUS_COLUMNS } from '@/lib/constants'
 /* ── Props ──────────────────────────────────────────────────────────── */
 
 interface TaskCardProps {
-  task: Task
+  task: Task & { subtask_count?: number; subtask_done?: number }
   onClick: () => void
   onDelete?: (task: Task) => void
 }
@@ -121,6 +122,14 @@ export default function TaskCard({ task, onClick, onDelete }: TaskCardProps) {
           <span className="inline-flex items-center gap-0.5 rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-medium text-purple-700">
             <Repeat size={10} />
             {frequencyAbbrev[task.recurring_frequency] ?? task.recurring_frequency}
+          </span>
+        )}
+
+        {/* Subtask count */}
+        {(task.subtask_count ?? 0) > 0 && (
+          <span className="inline-flex items-center gap-0.5 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
+            <CheckSquare size={10} />
+            {task.subtask_done ?? 0}/{task.subtask_count}
           </span>
         )}
       </div>
