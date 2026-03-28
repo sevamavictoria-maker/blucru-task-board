@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { X, Plus, Trash2 } from 'lucide-react'
-import type { SopTemplate, SopTemplateTask, TaskUrgency } from '@/types/database'
+import type { SopTemplate, TaskUrgency } from '@/types/database'
 import {
   useCreateSopTemplate,
   useUpdateSopTemplate,
@@ -8,11 +8,17 @@ import {
   useUpdateSopTask,
   useDeleteSopTask,
 } from '@/hooks/useSops'
+import { supabase } from '@/lib/supabase'
 import { DEPARTMENTS, URGENCY_OPTIONS } from '@/lib/constants'
 
 interface SopFormModalProps {
   template: SopTemplate | null
   onClose: () => void
+}
+
+interface SubtaskDraft {
+  existingId: string | null
+  title: string
 }
 
 interface StepDraft {
@@ -21,6 +27,7 @@ interface StepDraft {
   title: string
   durationHours: string
   urgency: TaskUrgency
+  subtasks: SubtaskDraft[]
 }
 
 const inputClass =
@@ -33,6 +40,7 @@ function buildInitialSteps(template: SopTemplate | null): StepDraft[] {
     title: t.title,
     durationHours: t.duration_hours?.toString() ?? '',
     urgency: t.default_urgency,
+    subtasks: (t.subtasks ?? []).map((s) => ({ existingId: s.id, title: s.title })),
   }))
 }
 
@@ -62,7 +70,7 @@ export default function SopFormModal({ template, onClose }: SopFormModalProps) {
   function addStep() {
     setSteps((prev) => [
       ...prev,
-      { existingId: null, title: '', durationHours: '', urgency: 'medium' },
+      { existingId: null, title: '', durationHours: '', urgency: 'medium', subtasks: [] },
     ])
   }
 
@@ -119,25 +127,49 @@ export default function SopFormModal({ template, onClose }: SopFormModalProps) {
         await Promise.all(removedIds.map((id) => deleteTask.mutateAsync(id)))
       }
 
-      // 3. Create or update each step
-      await Promise.all(
-        steps.map((step, index) => {
-          const payload = {
-            sequence: index + 1,
-            title: step.title.trim(),
-            duration_hours: step.durationHours ? parseInt(step.durationHours, 10) : null,
-            default_urgency: step.urgency,
-          }
+      // 3. Create or update each step, then save subtasks
+      for (let index = 0; index < steps.length; index++) {
+        const step = steps[index]
+        const payload = {
+          sequence: index + 1,
+          title: step.title.trim(),
+          duration_hours: step.durationHours ? parseFloat(step.durationHours) : null,
+          default_urgency: step.urgency,
+        }
 
-          if (step.existingId) {
-            return updateTask.mutateAsync({ id: step.existingId, ...payload })
+        let stepId: string
+        if (step.existingId) {
+          await updateTask.mutateAsync({ id: step.existingId, ...payload })
+          stepId = step.existingId
+        } else {
+          const created = await createTask.mutateAsync({ sop_template_id: templateId, ...payload })
+          stepId = created.id
+        }
+
+        // Delete removed subtasks
+        if (step.existingId) {
+          const keepIds = step.subtasks.filter(s => s.existingId).map(s => s.existingId!)
+          if (keepIds.length > 0) {
+            await supabase.from('sop_template_subtasks').delete().eq('sop_task_id', stepId).not('id', 'in', `(${keepIds.join(',')})`)
+          } else {
+            await supabase.from('sop_template_subtasks').delete().eq('sop_task_id', stepId)
           }
-          return createTask.mutateAsync({
-            sop_template_id: templateId,
-            ...payload,
-          })
-        })
-      )
+        }
+
+        // Create or update subtasks
+        const subtaskRows = step.subtasks
+          .filter(s => s.title.trim())
+          .map((s, si) => ({
+            ...(s.existingId ? { id: s.existingId } : {}),
+            sop_task_id: stepId,
+            title: s.title.trim(),
+            sequence: si + 1,
+          }))
+
+        if (subtaskRows.length > 0) {
+          await supabase.from('sop_template_subtasks').upsert(subtaskRows)
+        }
+      }
 
       onClose()
     } catch (err) {
@@ -299,6 +331,51 @@ export default function SopFormModal({ template, onClose }: SopFormModalProps) {
                             ))}
                           </select>
                         </div>
+                      </div>
+
+                      {/* Subtasks for this step */}
+                      <div className="mt-2 pl-1">
+                        <p className="text-[10px] font-medium text-gray-500 mb-1">
+                          Subtasks ({step.subtasks.length})
+                        </p>
+                        <div className="space-y-1">
+                          {step.subtasks.map((sub, si) => (
+                            <div key={si} className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-gray-400 w-4 text-right">{si + 1}.</span>
+                              <input
+                                type="text"
+                                value={sub.title}
+                                onChange={(e) => {
+                                  const newSubs = [...step.subtasks]
+                                  newSubs[si] = { ...newSubs[si], title: e.target.value }
+                                  updateStepField(index, 'subtasks', newSubs)
+                                }}
+                                placeholder="Subtask title"
+                                className="flex-1 rounded border border-gray-200 px-2 py-1 text-xs text-gray-700 outline-none focus:border-brand-500"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newSubs = step.subtasks.filter((_, i) => i !== si)
+                                  updateStepField(index, 'subtasks', newSubs)
+                                }}
+                                className="text-gray-300 hover:text-red-500 p-0.5"
+                              >
+                                <X size={12} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newSubs = [...step.subtasks, { existingId: null, title: '' }]
+                            updateStepField(index, 'subtasks', newSubs)
+                          }}
+                          className="mt-1 text-[10px] font-medium text-brand-600 hover:text-brand-700"
+                        >
+                          + Add subtask
+                        </button>
                       </div>
                     </div>
 

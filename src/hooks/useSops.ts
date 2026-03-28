@@ -10,7 +10,7 @@ export function useSopTemplates() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('sop_templates')
-        .select('*, tasks:sop_template_tasks(*)')
+        .select('*, tasks:sop_template_tasks(*, subtasks:sop_template_subtasks(*))')
         .order('name')
         .order('sequence', { referencedTable: 'sop_template_tasks', ascending: true })
 
@@ -19,7 +19,10 @@ export function useSopTemplates() {
       // Sort tasks by sequence within each template
       const templates = (data as SopTemplate[]).map((template) => ({
         ...template,
-        tasks: (template.tasks ?? []).sort((a, b) => a.sequence - b.sequence),
+        tasks: (template.tasks ?? []).sort((a, b) => a.sequence - b.sequence).map((t) => ({
+          ...t,
+          subtasks: (t.subtasks ?? []).sort((a, b) => a.sequence - b.sequence),
+        })),
       }))
 
       return templates

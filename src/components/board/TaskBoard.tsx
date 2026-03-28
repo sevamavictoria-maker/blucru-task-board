@@ -10,13 +10,14 @@ import {
 import { isToday, isThisWeek, isThisMonth } from 'date-fns'
 import type { Task, TaskStatus } from '@/types/database'
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from '@/hooks/useTasks'
+import { supabase } from '@/lib/supabase'
 import { useProjects, useCreateProject } from '@/hooks/useProjects'
 import { useUsers } from '@/hooks/useUsers'
 import { useSopTemplates } from '@/hooks/useSops'
 import { useAuth } from '@/hooks/useAuth'
 import { useCreateNotification } from '@/hooks/useNotifications'
 import { useAddActivity } from '@/hooks/useTaskActivity'
-import { STATUS_COLUMNS, URGENCY_OPTIONS, DEPARTMENTS } from '@/lib/constants'
+import { STATUS_COLUMNS, URGENCY_OPTIONS } from '@/lib/constants'
 import TaskColumn from '@/components/board/TaskColumn'
 import TaskCard from '@/components/board/TaskCard'
 import TaskFormModal from '@/components/board/TaskFormModal'
@@ -233,6 +234,8 @@ export default function TaskBoard() {
           start_date: opts.startDate,
           end_date: null,
           archived: false,
+          recurring_frequency: null,
+          recurring_auto_create: false,
         })
         projectId = newProject.id
       }
@@ -247,7 +250,7 @@ export default function TaskBoard() {
         const dueDate = new Date(opts.startDate)
         dueDate.setDate(dueDate.getDate() + daysOffset)
 
-        await createTask.mutateAsync({
+        const newTask = await createTask.mutateAsync({
           title: step.title,
           description: null,
           department: template.department,
@@ -264,6 +267,17 @@ export default function TaskBoard() {
           recurring_auto_create: false,
           recurring_parent_id: null,
         })
+
+        // Create subtasks from SOP template
+        if (step.subtasks?.length) {
+          const subtaskRows = step.subtasks.map((s, si) => ({
+            task_id: newTask.id,
+            title: s.title,
+            sequence: si + 1,
+            completed: false,
+          }))
+          await supabase.from('subtasks').insert(subtaskRows)
+        }
       }
     } catch {
       // errors surfaced via react-query

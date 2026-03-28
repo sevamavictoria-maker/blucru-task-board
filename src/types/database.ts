@@ -25,6 +25,8 @@ export interface Project {
   start_date: string | null
   end_date: string | null
   archived: boolean
+  recurring_frequency: RecurringProjectFrequency | null
+  recurring_auto_create: boolean
   created_at: string
   creator?: Profile | null
 }
@@ -107,4 +109,15 @@ export interface SopTemplateTask {
   duration_hours: number | null
   default_urgency: TaskUrgency
   created_at: string
+  subtasks?: SopTemplateSubtask[]
 }
+
+export interface SopTemplateSubtask {
+  id: string
+  sop_task_id: string
+  title: string
+  sequence: number
+  created_at: string
+}
+
+export type RecurringProjectFrequency = 'weekly' | 'monthly' | 'quarterly'

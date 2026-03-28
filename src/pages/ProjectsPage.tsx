@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Plus, Pencil, Archive, ArchiveRestore, FolderOpen, Calendar, Users } from 'lucide-react'
+import { Plus, Pencil, Archive, ArchiveRestore, FolderOpen, Calendar, Users, Repeat } from 'lucide-react'
 import { format, isPast } from 'date-fns'
 import type { Project, TaskStatus } from '@/types/database'
 import { useProjects, useUpdateProject, useCreateProject } from '@/hooks/useProjects'
@@ -190,6 +190,12 @@ function ProjectCard({
                   Overdue
                 </span>
               )}
+              {project.recurring_auto_create && project.recurring_frequency && (
+                <span className="inline-flex items-center gap-0.5 px-2.5 py-0.5 text-[10px] font-semibold rounded-full bg-purple-100 text-purple-700">
+                  <Repeat size={10} />
+                  {project.recurring_frequency}
+                </span>
+              )}
               {overdueCount > 0 && (
                 <span className="text-[10px] text-red-500 font-medium">
                   {overdueCount} overdue task{overdueCount > 1 ? 's' : ''}
@@ -306,6 +312,8 @@ function ProjectFormModal({
   const [status, setStatus] = useState<TaskStatus>(project?.status ?? 'new')
   const [startDate, setStartDate] = useState(project?.start_date ?? '')
   const [endDate, setEndDate] = useState(project?.end_date ?? '')
+  const [recurringFrequency, setRecurringFrequency] = useState(project?.recurring_frequency ?? '')
+  const [recurringAutoCreate, setRecurringAutoCreate] = useState(project?.recurring_auto_create ?? false)
   const [saving, setSaving] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
@@ -320,6 +328,8 @@ function ProjectFormModal({
         status,
         start_date: startDate || null,
         end_date: endDate || null,
+        recurring_frequency: recurringFrequency || null,
+        recurring_auto_create: recurringAutoCreate,
         ...(isEdit ? {} : {
           color: null,
           sop_template_id: null,
@@ -391,6 +401,37 @@ function ProjectFormModal({
               <label className="block text-xs font-medium text-gray-700 mb-1">End Date</label>
               <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="input" />
             </div>
+          </div>
+
+          {/* Recurring */}
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+            <label className="flex items-center gap-2 cursor-pointer mb-3">
+              <input
+                type="checkbox"
+                checked={recurringAutoCreate}
+                onChange={(e) => setRecurringAutoCreate(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+              />
+              <span className="text-sm font-medium text-gray-700">Recurring Project</span>
+            </label>
+            {recurringAutoCreate && (
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Frequency</label>
+                <select
+                  value={recurringFrequency}
+                  onChange={(e) => setRecurringFrequency(e.target.value)}
+                  className="input"
+                >
+                  <option value="">Select frequency...</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="quarterly">Quarterly</option>
+                </select>
+                <p className="text-[10px] text-purple-600 mt-1">
+                  When all tasks are done, a new copy of this project with all tasks and subtasks will be auto-created.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
