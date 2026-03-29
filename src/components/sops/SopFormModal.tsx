@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, Plus, Trash2 } from 'lucide-react'
+import { X, Plus, Trash2, ArrowUp, ArrowDown } from 'lucide-react'
 import type { SopTemplate, TaskUrgency } from '@/types/database'
 import {
   useCreateSopTemplate,
@@ -76,6 +76,16 @@ export default function SopFormModal({ template, onClose }: SopFormModalProps) {
 
   function removeStep(index: number) {
     setSteps((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  function moveStep(index: number, direction: 'up' | 'down') {
+    setSteps((prev) => {
+      const next = [...prev]
+      const targetIndex = direction === 'up' ? index - 1 : index + 1
+      if (targetIndex < 0 || targetIndex >= next.length) return prev
+      ;[next[index], next[targetIndex]] = [next[targetIndex], next[index]]
+      return next
+    })
   }
 
   function updateStepField<K extends keyof StepDraft>(
@@ -275,9 +285,27 @@ export default function SopFormModal({ template, onClose }: SopFormModalProps) {
                     key={index}
                     className="flex items-start gap-3 rounded-lg border border-gray-100 bg-gray-50/50 p-3"
                   >
-                    {/* Sequence number */}
-                    <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-brand-600 text-xs font-bold text-white">
-                      {index + 1}
+                    {/* Sequence number + reorder */}
+                    <div className="flex flex-col items-center gap-0.5 flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => moveStep(index, 'up')}
+                        disabled={index === 0}
+                        className="p-0.5 text-gray-400 hover:text-brand-600 disabled:opacity-20 disabled:cursor-default"
+                      >
+                        <ArrowUp size={12} />
+                      </button>
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-600 text-xs font-bold text-white">
+                        {index + 1}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => moveStep(index, 'down')}
+                        disabled={index === steps.length - 1}
+                        className="p-0.5 text-gray-400 hover:text-brand-600 disabled:opacity-20 disabled:cursor-default"
+                      >
+                        <ArrowDown size={12} />
+                      </button>
                     </div>
 
                     {/* Fields */}
